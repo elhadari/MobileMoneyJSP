@@ -1,0 +1,29 @@
+
+server.port=8081
+
+# Configuration an'ny JSP
+spring.mvc.view.prefix=/WEB-INF/jsp/
+spring.mvc.view.suffix=.jsp
+
+# Configuration an'ny PostgreSQL (mvola)
+spring.datasource.url=jdbc:postgresql://localhost:5432/mvola
+spring.datasource.username=postgres
+spring.datasource.password=asus
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# Hibernate settings
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+
+# Send email code
+spring.mail.host=smtp.gmail.com
+spring.mail.port=465
+spring.mail.username=elhadari04@gmail.com
+spring.mail.password=dshlkqcujospzndi
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+spring.mail.properties.mail.smtp.localhost=127.0.0.1
+spring.mail.properties.mail.smtp.connectiontimeout=10000
+spring.mail.properties.mail.smtp.timeout=10000
+spring.mail.properties.mail.smtp.writetimeout=10000

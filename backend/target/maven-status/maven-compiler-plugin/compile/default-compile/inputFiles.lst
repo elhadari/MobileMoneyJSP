@@ -1,0 +1,9 @@
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/DemoApplication.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/repository/UserRepository.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/controller/AuthController.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/service/EmailService.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/HomeController.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/model/User.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/controller/ClientController.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/repository/ClientRepository.java
+/home/el-hadari/JSPPROJET/backend/src/main/java/com/example/demo/model/Client.java

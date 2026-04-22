@@ -1,0 +1,9 @@
+com/example/demo/DemoApplication.class
+com/example/demo/service/EmailService.class
+com/example/demo/repository/UserRepository.class
+com/example/demo/model/Client.class
+com/example/demo/HomeController.class
+com/example/demo/model/User.class
+com/example/demo/repository/ClientRepository.class
+com/example/demo/controller/ClientController.class
+com/example/demo/controller/AuthController.class
