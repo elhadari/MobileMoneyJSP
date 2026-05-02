@@ -1,303 +1,303 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { 
-  User, Phone, Mail, Calendar, ArrowUpRight, ArrowDownLeft, 
-  FileDown, Clock, Wallet, Plus, History, MoreHorizontal,
-  Home, Send, LayoutDashboard, Settings, LogOut, Landmark, RefreshCcw, X
+  User, Phone, Calendar, ArrowDownLeft, 
+  Wallet, Plus, History, Home, Send, 
+  Settings, LogOut, X, Landmark, TrendingUp, TrendingDown
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import ViewTransfert from './ViewTransfert';
+import ViewFrais from './ViewFrais';
+import HistoriquePage from '@/app/client/historique/page';
 
 const ClientProfile = () => {
+  const [activeTab, setActiveTab] = useState('accueil');
   const [clientInfo, setClientInfo] = useState<any>(null);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
+  const [transactionAmount, setTransactionAmount] = useState<number>(0);
+  
+  // Ampiasaina ho an'ny DepositRequest DTO
   const [formData, setFormData] = useState({
-    numtel: '',
-    nom: '',
-    age: '',
-    sexe: 'Masculin',
-    mail: ''
+    numtel: '', nom: '', age: '', sexe: 'masculin', mail: '', solde: 0.0
   });
 
-  const closeModal = () => setActiveModal(null);
+  const API_BASE_URL = "http://localhost:8080/api/clients";
 
   useEffect(() => {
-    const userEmail = localStorage.getItem('userEmail') || 'elyserandria29@gmail.com'; 
-    fetchClientData(userEmail);
+    const storedEmail = localStorage.getItem("userEmail");
+    if (storedEmail) {
+      fetchClientData(storedEmail);
+    } else {
+      window.location.href = "/login";
+    }
   }, []);
 
   const fetchClientData = async (email: string) => {
     try {
-      const res = await fetch(`http://localhost:8081/api/clients/me/${email}`);
+      const res = await fetch(`${API_BASE_URL}/me/${email}`);
       if (res.ok) {
         const data = await res.json();
         setClientInfo(data);
         setFormData(data);
+      } else if (res.status === 404) {
+        setFormData(prev => ({ ...prev, mail: email }));
+        setActiveModal('info');
       }
     } catch (err) {
-      console.error("Erreur de récupération des données", err);
+      console.error("Erreur réseau:", err);
     }
   };
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
+  const handleSubmitProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    // Raha mbola tsy misy Client, dia any amin'ny add no mandeha (na create arakaraka ny controller-nao)
+    const isCreation = !clientInfo;
+    const url = isCreation ? `${API_BASE_URL}/add` : `${API_BASE_URL}/update/${formData.numtel}`;
+    
     try {
-      const res = await fetch('http://localhost:8081/api/clients/update', {
-        method: 'PUT',
+      const res = await fetch(url, {
+        method: isCreation ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
+      const data = await res.json();
 
       if (res.ok) {
-        setClientInfo(formData);
-        Swal.fire({
-          title: 'Succès !',
-          text: 'Votre profil a été mis à jour avec succès.',
-          icon: 'success',
-          confirmButtonColor: '#003366',
-          timer: 2000
-        });
-        closeModal();
+        setClientInfo(data);
+        Swal.fire('Succès !', isCreation ? 'Compte créé avec succès.' : 'Profil mis à jour.', 'success');
+        setActiveModal(null);
+      } else {
+        Swal.fire('Erreur', data.error || 'Une erreur est survenue.', 'error');
       }
     } catch (err) {
       Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  const handleDeleteAccount = async () => {
-    const result = await Swal.fire({
-      title: 'Êtes-vous sûr ?',
-      text: "Cette action est irréversible !",
+  const handleTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (transactionAmount <= 0) return;
+
+    setLoading(true);
+    try {
+      // Mifidy ny URL arakaraka ny modal (deposit na withdraw)
+      const endpoint = activeModal === 'ajout' ? 'deposit' : 'withdraw';
+      
+      // Manomana ny DepositRequest DTO
+      const payload = {
+        numtel: clientInfo.numtel,
+        amount: transactionAmount
+      };
+
+      const res = await fetch(`${API_BASE_URL}/${endpoint}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        if (activeModal === 'ajout') {
+          setClientInfo(data); // Ny deposit dia mamerina Client updated
+          Swal.fire('Réussi !', `Dépôt de ${transactionAmount} Ar effectué.`, 'success');
+        } else {
+          // Ny withdrawal dia mamerina message (PENDING)
+          Swal.fire('Demande envoyée', data.message, 'info');
+        }
+        setActiveModal(null);
+        setTransactionAmount(0);
+      } else {
+        Swal.fire('Erreur', data.error || 'Erreur lors de la transaction', 'error');
+      }
+    } catch (err) {
+      Swal.fire('Erreur', 'Erreur serveur.', 'error');
+    } finally { setLoading(false); }
+  };
+
+  const handleLogout = () => {
+    Swal.fire({
+      title: 'Voulez-vous vraiment vous déconnecter ?',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#003366',
-      confirmButtonText: 'Oui, supprimer !',
-      cancelButtonText: 'Annuler'
-    });
-
-    if (result.isConfirmed && clientInfo) {
-      try {
-        const res = await fetch(`http://localhost:8081/api/clients/delete/${clientInfo.numtel}`, {
-          method: 'DELETE'
-        });
-        if (res.ok) {
-          Swal.fire('Supprimé !', 'Votre compte a été supprimé.', 'success').then(() => {
-            window.location.href = "/login";
-          });
-        } else {
-          Swal.fire('Erreur', 'Impossible de supprimer un compte ayant des transactions actives.', 'error');
-        }
-      } catch (err) {
-        Swal.fire('Erreur', 'Un problème technique est survenu.', 'error');
+      confirmButtonColor: '#003366',
+      confirmButtonText: 'Oui, me déconnecter'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        localStorage.removeItem("userEmail");
+        window.location.href = "/login";
       }
-    }
+    });
   };
 
-  return (
-    <div className="flex h-screen bg-[#F2F2F2] overflow-hidden font-sans text-[#003366]">
-      
-      <aside className="w-72 bg-[#003366] text-white flex flex-col hidden lg:flex">
-        <div className="p-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#FFCC00] rounded-xl flex items-center justify-center shadow-lg shadow-yellow-500/20">
-               <Wallet className="text-[#003366]" size={24} />
-            </div>
-            <span className="text-3xl font-black tracking-tighter">yas<span className="text-[#FFCC00]">.</span></span>
+  // --- Views ---
+  const ViewAccueil = () => (
+    <div className="animate-in fade-in duration-500 flex flex-col h-full space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-[#003366] uppercase tracking-tighter">
+            Tableau de <span className="text-[#FFCC00]">bord.</span>
+          </h1>
+          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em]">Gestion de compte en temps réel</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Card Solde */}
+        <div className="lg:col-span-1 bg-[#FFCC00] rounded-[2.5rem] p-8 shadow-xl border-4 border-[#003366] relative overflow-hidden flex flex-col justify-between min-h-[320px]">
+          <Wallet className="absolute -right-4 -bottom-4 w-32 h-32 text-[#003366]/5 -rotate-12" />
+          <div className="relative z-10">
+            <p className="text-[#003366]/70 text-xs font-black uppercase tracking-widest">Solde disponible</p>
+            <h2 className="text-5xl font-black text-[#003366] mt-3">
+              {clientInfo?.solde?.toLocaleString() || "0"} <span className="text-2xl">Ar</span>
+            </h2>
+          </div>
+          <div className="mt-8 grid grid-cols-2 gap-3 relative z-10">
+            <button onClick={() => setActiveModal('ajout')} className="bg-[#003366] text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition shadow-lg text-sm uppercase">
+              <Plus size={18}/> Dépôt
+            </button>
+            <button onClick={() => setActiveModal('retrait')} className="bg-white text-[#003366] border-2 border-[#003366] py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-50 active:scale-95 transition text-sm uppercase">
+              <ArrowDownLeft size={18}/> Retrait
+            </button>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2">
-          <NavItem icon={<Home size={20}/>} label="Accueil" active />
-          <NavItem icon={<Send size={20}/>} label="Transfert d'argent" onClick={() => setActiveModal('transfert')} />
-          <NavItem icon={<History size={20}/>} label="Historique" />
-          <NavItem icon={<LayoutDashboard size={20}/>} label="Statistiques" />
-          <div className="pt-10 pb-4 px-4 text-xs font-bold text-blue-200/50 uppercase tracking-widest">Réglages</div>
-          <NavItem icon={<Settings size={20}/>} label="Paramètres" />
-        </nav>
+        {/* Info Client */}
+        <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 relative overflow-hidden flex flex-col justify-between min-h-[320px]">
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-1.5 bg-[#FFCC00] rounded-full"></div>
+              <h3 className="text-xl font-black text-[#003366] uppercase tracking-tighter">Informations Client</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-8 mt-2">
+              <InfoItem label="Titulaire" value={clientInfo?.nom || "---"} subValue="Profil vérifié" />
+              <InfoItem label="Numéro" value={clientInfo?.numtel || "---"} subValue="Ligne active" />
+              <InfoItem label="Âge" value={clientInfo?.age ? `${clientInfo.age} ans` : "---"} subValue="Info" />
+              <InfoItem label="Email" value={clientInfo?.mail || "---"} subValue="Compte lié" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
+  const InfoItem = ({ label, value, subValue }: any) => (
+    <div className="group">
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 group-hover:text-[#FFCC00] transition-colors">{label}</p>
+      <p className="text-[#003366] font-bold text-lg truncate leading-none">{value}</p>
+      {subValue && <p className="text-[9px] text-gray-300 font-bold mt-1 uppercase tracking-tighter">{subValue}</p>}
+      <div className="h-1 w-8 bg-[#FFCC00]/20 mt-2 rounded-full group-hover:w-12 transition-all"></div>
+    </div>
+  );
+
+  const NavItem = ({ icon, label, active = false, onClick }: any) => (
+    <div onClick={onClick} className={`flex items-center gap-4 px-5 py-4 rounded-2xl cursor-pointer transition-all ${active ? 'bg-[#FFCC00] text-[#003366] font-black shadow-md' : 'text-blue-100/60 hover:bg-white/5 hover:text-white'}`}>
+      {icon} <span className="text-sm font-bold uppercase tracking-wider">{label}</span>
+    </div>
+  );
+
+  return (
+    <div className="flex h-screen bg-[#F8F9FA] overflow-hidden font-sans text-[#003366]">
+      {/* Sidebar */}
+      <aside className="w-72 bg-[#003366] text-white flex flex-col hidden lg:flex">
+        <div className="p-8 flex items-center gap-3">
+          <div className="w-10 h-10 bg-[#FFCC00] rounded-xl flex items-center justify-center shadow-lg"><Wallet className="text-[#003366]" size={24} /></div>
+          <span className="text-3xl font-black tracking-tighter">YAS<span className="text-[#FFCC00]">.</span></span>
+        </div>
+        <nav className="flex-1 px-4 space-y-2 mt-4">
+          <NavItem icon={<Home size={20}/>} label="Accueil" active={activeTab === 'accueil'} onClick={() => setActiveTab('accueil')} />
+          <NavItem icon={<Send size={20}/>} label="Transfert" active={activeTab === 'transfert'} onClick={() => setActiveTab('transfert')} />
+          <NavItem icon={<Landmark size={20}/>} label="Frais" active={activeTab === 'frais'} onClick={() => setActiveTab('frais')} />
+          <NavItem icon={<History size={20}/>} label="Historique" active={activeTab === 'historique'} onClick={() => setActiveTab('historique')} />
+          <div className="pt-10 pb-4 px-4 text-[10px] font-black text-blue-200/30 uppercase tracking-[0.2em]">Configuration</div>
+          <NavItem icon={<Settings size={20}/>} label="Profil" active={activeModal === 'info'} onClick={() => setActiveModal('info')} />
+        </nav>
         <div className="p-6 border-t border-white/10">
-          <button className="flex items-center gap-3 text-red-400 hover:text-red-300 transition w-full px-4 py-3">
-            <LogOut size={20} />
-            <span className="font-bold">Déconnexion</span>
+          <button onClick={handleLogout} className="flex items-center gap-3 text-red-400 font-bold w-full px-4 py-3 hover:bg-red-500/10 rounded-2xl transition text-sm uppercase tracking-widest">
+            <LogOut size={20} /> Déconnexion
           </button>
         </div>
       </aside>
 
+      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        
-        <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 z-10">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-bold text-[#003366]">Tableau de bord</h2>
-          </div>
-          <div className="flex items-center gap-6">
-             <div className="hidden md:block text-right">
-                <p className="text-sm font-bold text-[#003366]">{clientInfo?.nom || 'Utilisateur YAS'}</p>
-                <p className="text-xs text-gray-500">Compte Standard</p>
-             </div>
-             <div className="w-10 h-10 bg-[#FFCC00] rounded-full border-2 border-[#003366] flex items-center justify-center font-black text-[#003366]">
-                {clientInfo?.nom?.charAt(0) || 'U'}
-             </div>
+        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8">
+          <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">{activeTab}</h2>
+          <div className="w-10 h-10 bg-[#FFCC00] rounded-full border-2 border-[#003366] flex items-center justify-center font-black shadow-sm uppercase">
+            {clientInfo?.nom?.charAt(0) || 'U'}
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            <div className="lg:col-span-1 bg-[#FFCC00] rounded-[2.5rem] p-8 shadow-xl shadow-yellow-500/30 border-4 border-[#003366] relative overflow-hidden group">
-               <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform duration-500">
-                  <Wallet size={80} className="text-[#003366]" />
-               </div>
-               <p className="text-[#003366]/70 text-sm font-bold uppercase tracking-widest">Solde Actuel</p>
-               <h2 className="text-5xl font-black text-[#003366] mt-2 italic">
-                  {clientInfo?.solde?.toLocaleString() || "0"} Ar
-               </h2>
-               <div className="mt-8 flex gap-2">
-                  <button onClick={() => setActiveModal('ajout')} className="bg-[#003366] text-white px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:scale-105 active:scale-95 transition shadow-lg flex-1 justify-center">
-                    <Plus size={18} /> Dépôt
-                  </button>
-                  <button onClick={() => setActiveModal('retrait')} className="bg-white text-[#003366] border-2 border-[#003366] px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:scale-105 active:scale-95 transition flex-1 justify-center">
-                    <ArrowDownLeft size={18} /> Retrait
-                  </button>
-               </div>
-            </div>
-
-            <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 flex flex-col md:flex-row gap-8 relative group hover:shadow-md transition-all duration-300">
-               <button 
-                  onClick={() => setActiveModal('info')}
-                  className="absolute top-6 right-6 p-3 bg-gray-50 text-[#003366] rounded-xl hover:bg-[#FFCC00] hover:scale-110 transition active:scale-90"
-                  title="Modifier les informations"
-               >
-                  <Settings size={20} />
-               </button>
-               <div className="flex-1 space-y-4">
-                  <h3 className="text-xl font-black text-[#003366] border-l-4 border-[#FFCC00] pl-4 uppercase tracking-tighter">Informations Personnelles</h3>
-                  <div className="grid grid-cols-2 gap-6 pt-4">
-                     <InfoItem label="Nom" value={clientInfo?.nom || "Non renseigné"} />
-                     <InfoItem label="Téléphone" value={clientInfo?.numtel || "Non renseigné"} />
-                     <InfoItem label="Âge" value={clientInfo?.age ? `${clientInfo.age} ans` : "Non renseigné"} />
-                     <InfoItem label="Sexe" value={clientInfo?.sexe || "Non renseigné"} />
-                  </div>
-               </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-8 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
-               <h3 className="text-xl font-black text-[#003366] uppercase tracking-tighter">Dernières Activités</h3>
-               <button className="text-[#FFCC00] bg-[#003366] px-4 py-2 rounded-xl text-xs font-black uppercase shadow-md flex items-center gap-2 hover:bg-blue-900 transition">
-                 <RefreshCcw size={14} /> Voir tout
-               </button>
-            </div>
-            <div className="p-4 overflow-x-auto text-center py-20">
-               <Clock className="mx-auto text-gray-200 mb-4 animate-pulse" size={48} />
-               <p className="text-gray-400 font-medium italic">Aucune transaction récente.</p>
-            </div>
-          </div>
-
-          <footer className="pt-10 pb-6 text-center text-gray-400 text-sm border-t border-gray-100">
-            <p>© 2026 YAS Service - Tous droits réservés.</p>
-          </footer>
+        <main className="flex-1 overflow-y-auto p-8">
+          {activeTab === 'accueil' && <ViewAccueil />}
+          {activeTab === 'transfert' && <ViewTransfert clientInfo={clientInfo} setClientInfo={setClientInfo} />}
+          {activeTab === 'frais' && <ViewFrais />}
+          {activeTab === 'historique' && <HistoriquePage />}
         </main>
       </div>
 
-      {activeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#003366]/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md p-8 border-4 border-[#FFCC00] animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black uppercase tracking-tighter text-[#003366]">
-                {activeModal === 'ajout' && 'Effectuer un Dépôt'}
-                {activeModal === 'retrait' && 'Effectuer un Retrait'}
-                {activeModal === 'transfert' && 'Transférer des fonds'}
-                {activeModal === 'info' && 'Mise à jour du Profil'}
-              </h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-red-500 font-black transition">
-                 <X size={24} />
-              </button>
+      {/* Modals Profil */}
+      {activeModal === 'info' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#003366]/80 backdrop-blur-md">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl p-10 border-t-8 border-[#FFCC00] animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-3xl font-black uppercase tracking-tighter text-[#003366]">{!clientInfo ? "Créer un compte" : "Modifier Profil"}</h2>
+              {clientInfo && <button onClick={() => setActiveModal(null)} className="p-2 bg-gray-100 rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500"><X size={20}/></button>}
             </div>
-            
-            <form className="space-y-4" onSubmit={activeModal === 'info' ? handleUpdateProfile : (e) => { e.preventDefault(); closeModal(); }}>
-              {activeModal !== 'info' ? (
-                <>
-                  <div>
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Montant (Ar)</label>
-                    <input type="number" className="w-full p-4 bg-gray-50 border-none rounded-xl mt-1 focus:ring-2 focus:ring-[#FFCC00] text-lg font-bold" placeholder="0.00" required />
-                  </div>
-                  {activeModal === 'transfert' && (
-                    <div>
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Numéro du destinataire</label>
-                      <input type="text" className="w-full p-4 bg-gray-50 border-none rounded-xl mt-1 focus:ring-2 focus:ring-[#FFCC00]" placeholder="03x xx xxx xx" required />
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-1">
-                     <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Numéro de Téléphone (Fixe)</label>
-                     <input 
-                        type="text" 
-                        value={formData.numtel}
-                        disabled
-                        className="w-full p-4 bg-gray-100 border-none rounded-xl cursor-not-allowed opacity-70" 
-                     />
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="Nom complet" 
-                    value={formData.nom}
-                    onChange={(e) => setFormData({...formData, nom: e.target.value})}
-                    className="p-4 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-[#FFCC00]" 
-                  />
-                  <div className="flex gap-2">
-                    <input 
-                      type="number" 
-                      placeholder="Âge" 
-                      value={formData.age}
-                      onChange={(e) => setFormData({...formData, age: e.target.value})}
-                      className="p-4 bg-gray-50 border-none rounded-xl flex-1 focus:ring-2 focus:ring-[#FFCC00]" 
-                    />
-                    <select 
-                      className="p-4 bg-gray-50 border-none rounded-xl flex-1 focus:ring-2 focus:ring-[#FFCC00]"
-                      value={formData.sexe}
-                      onChange={(e) => setFormData({...formData, sexe: e.target.value})}
-                    >
-                      <option value="Masculin">Masculin</option>
-                      <option value="Féminin">Féminin</option>
-                    </select>
-                  </div>
-                  <input 
-                    type="email" 
-                    placeholder="Adresse Email" 
-                    value={formData.mail}
-                    onChange={(e) => setFormData({...formData, mail: e.target.value})}
-                    className="p-4 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-[#FFCC00]" 
-                  />
+            <form className="space-y-6" onSubmit={handleSubmitProfile}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Numéro</label>
+                  <input type="text" required disabled={!!clientInfo} value={formData.numtel} onChange={(e) => setFormData({...formData, numtel: e.target.value})} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-[#FFCC00] rounded-2xl outline-none font-bold" />
                 </div>
-              )}
-              
-              <div className="flex flex-col gap-3 pt-4">
-                <button 
-                  disabled={loading}
-                  className="w-full py-4 bg-[#003366] text-[#FFCC00] font-black rounded-xl uppercase tracking-widest hover:bg-[#002244] transition-all shadow-lg active:scale-95 disabled:opacity-50"
-                >
-                  {loading ? 'Traitement en cours...' : 'Confirmer l\'opération'}
-                </button>
-                
-                {activeModal === 'info' && (
-                   <button 
-                    type="button"
-                    onClick={handleDeleteAccount}
-                    className="text-red-500 font-bold text-xs uppercase hover:underline p-2"
-                   >
-                     Supprimer mon compte
-                   </button>
-                )}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Nom Complet</label>
+                  <input type="text" required value={formData.nom} onChange={(e) => setFormData({...formData, nom: e.target.value})} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-[#FFCC00] rounded-2xl outline-none font-bold" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Âge</label>
+                  <input type="number" required value={formData.age} onChange={(e) => setFormData({...formData, age: e.target.value})} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-[#FFCC00] rounded-2xl outline-none font-bold" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest">Sexe</label>
+                  <select value={formData.sexe} onChange={(e) => setFormData({...formData, sexe: e.target.value})} className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-[#FFCC00] rounded-2xl outline-none font-bold">
+                    <option value="masculin">Masculin</option>
+                    <option value="féminin">Féminin</option>
+                  </select>
+                </div>
               </div>
+              <button disabled={loading} className="w-full py-5 bg-[#003366] text-[#FFCC00] font-black rounded-[1.5rem] uppercase tracking-[0.2em] hover:brightness-110 transition-all shadow-xl active:scale-95">
+                {loading ? 'Traitement...' : 'Enregistrer le Profil'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Dépôt / Retrait */}
+      {(activeModal === 'ajout' || activeModal === 'retrait') && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#003366]/80 backdrop-blur-md">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 border-t-8 border-[#FFCC00] animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black uppercase text-[#003366] flex items-center gap-2">
+                {activeModal === 'ajout' ? <TrendingUp className="text-green-500"/> : <TrendingDown className="text-red-500"/>}
+                {activeModal === 'ajout' ? 'Dépôt' : 'Retrait'}
+              </h2>
+              <button onClick={() => {setActiveModal(null); setTransactionAmount(0);}} className="p-2 bg-gray-100 rounded-full text-gray-400 hover:text-red-500"><X size={20}/></button>
+            </div>
+            <form className="space-y-6" onSubmit={handleTransaction}>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Montant (Ar)</label>
+                <div className="relative">
+                  <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 text-[#FFCC00]" size={20} />
+                  <input type="number" autoFocus value={transactionAmount || ''} onChange={(e) => setTransactionAmount(parseFloat(e.target.value) || 0)} className="w-full p-5 pl-14 bg-gray-50 border-2 border-transparent focus:border-[#FFCC00] rounded-2xl outline-none font-black text-[#003366] text-xl" placeholder="0 Ar" />
+                </div>
+              </div>
+              <button disabled={loading || transactionAmount <= 0} className={`w-full py-5 font-black rounded-2xl uppercase transition-all shadow-xl ${activeModal === 'ajout' ? 'bg-[#003366] text-[#FFCC00]' : 'bg-[#FFCC00] text-[#003366]'}`}>
+                {loading ? 'Traitement...' : 'Confirmer'}
+              </button>
             </form>
           </div>
         </div>
@@ -305,25 +305,5 @@ const ClientProfile = () => {
     </div>
   );
 };
-
-const NavItem = ({ icon, label, active = false, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) => (
-  <div 
-    onClick={onClick}
-    className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl cursor-pointer transition-all active:scale-95 ${
-      active ? 'bg-[#FFCC00] text-[#003366] font-black shadow-md' : 'text-blue-100 hover:bg-white/10 hover:text-white'
-    }`}
-  >
-    {icon}
-    <span className="text-sm">{label}</span>
-  </div>
-);
-
-const InfoItem = ({ label, value }: { label: string, value: string }) => (
-  <div>
-    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
-    <p className="text-[#003366] font-bold truncate">{value}</p>
-    <div className="h-1 w-8 bg-[#FFCC00] mt-1 rounded-full"></div>
-  </div>
-);
 
 export default ClientProfile;

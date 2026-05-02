@@ -6,16 +6,13 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  theme: {
-    extend: {
-      colors: {
-        mvola: {
-          yellow: "#ffcc00",
-          red: "#d40000",
-        },
-      },
+theme: {
+  extend: {
+    fontFamily: {
+      sans: ['Inter', 'sans-serif'],
     },
   },
+},
   plugins: [],
 };
 export default config;
